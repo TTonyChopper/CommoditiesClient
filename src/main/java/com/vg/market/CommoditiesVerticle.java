@@ -23,21 +23,35 @@ public class CommoditiesVerticle extends AbstractVerticle {
 
     private HttpServer httpServer;
 
+    public static final int API_HISTORICAL_DAYS_LIMIT = 365;
+    public static final DateTimeFormatter API_DATE_FORMATTER = DateTimeFormatter.ISO_DATE;
+
     public static void main(String[] args) {
         Vertx vertx = Vertx.vertx();
         vertx.deployVerticle(new CommoditiesVerticle());
     }
 
     private String getYesterdayDate() {
-        return LocalDate.now().minusDays(1).format(DateTimeFormatter.ISO_DATE);
+        return LocalDate.now().minusDays(1).format(API_DATE_FORMATTER);
     }
 
     public String getYesterdayDate(LocalDate date) {
         return date.minusDays(1).format(DateTimeFormatter.ISO_DATE);
     }
 
-    private String getTodayDate() {
-        return LocalDate.now().format(DateTimeFormatter.ISO_DATE);
+    private LocalDate getTodayDate() {
+        return LocalDate.now();
+    }
+
+    public LocalDate getApiHistLimitDate(LocalDate endDate) {
+        return endDate.minusDays(API_HISTORICAL_DAYS_LIMIT);
+    }
+
+    public LocalDate getMinimalStartDate(String endDate) {
+        LocalDate parsed = LocalDate.parse(endDate, API_DATE_FORMATTER);
+        LocalDate now = LocalDate.now();
+        LocalDate absLimit = getApiHistLimitDate(now);
+        return absLimit;
     }
 
     @Override
@@ -87,8 +101,10 @@ public class CommoditiesVerticle extends AbstractVerticle {
                 String endDate = ctx.request().getParam("endDate");
                 endDate = (endDate == null) ? getYesterdayDate() : endDate;
 
+                String startDate = getMinimalStartDate(endDate).format(API_DATE_FORMATTER);
+
                 client
-                        .get(443, CommoditiesQueryBuilder.COMMODITIES_BASE_URL, queryBuilder.getSeries(v, from, to, endDate))
+                        .get(443, CommoditiesQueryBuilder.COMMODITIES_BASE_URL, queryBuilder.getSeries(v, from, to, startDate, endDate))
                         .ssl(true)
                         .send()
                         .onSuccess(response -> {
